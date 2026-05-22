@@ -1,0 +1,293 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Username + password authentication.
+  - name: scores
+    description: Player scores and leaderboard.
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /auth/signup:
+    post:
+      tags: [auth]
+      operationId: signup
+      summary: Create a new account with a username and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialsInput'
+      responses:
+        '201':
+          description: Account created and signed in.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUser'
+        '400':
+          description: Invalid credentials format.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Username already taken.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: Log in with a username and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialsInput'
+      responses:
+        '200':
+          description: Logged in.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUser'
+        '401':
+          description: Invalid username or password.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Log out the current session
+      responses:
+        '200':
+          description: Logged out.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResult'
+  /auth/me:
+    get:
+      tags: [auth]
+      operationId: getCurrentUser
+      summary: Get the currently signed-in user (or null)
+      responses:
+        '200':
+          description: Auth state resolved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUserEnvelope'
+  /auth/me/color:
+    put:
+      tags: [auth]
+      operationId: setNameColor
+      summary: Set the signed-in player's leaderboard name color (rank 1 only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetNameColorInput'
+      responses:
+        '200':
+          description: Color applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUser'
+        '400':
+          description: Invalid color.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Only the rank-1 player may pick a color.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /scores:
+    post:
+      tags: [scores]
+      operationId: submitScore
+      summary: Submit a final game score for the authenticated player
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitScoreInput'
+      responses:
+        '201':
+          description: Score recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreEntry'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /leaderboard:
+    get:
+      tags: [scores]
+      operationId: getLeaderboard
+      summary: Top 10 highest scores across all signed-in players
+      responses:
+        '200':
+          description: Leaderboard entries, ordered descending
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeaderboardEntry'
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    CredentialsInput:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 32
+          pattern: '^[A-Za-z0-9_]+$'
+        password:
+          type: string
+          minLength: 6
+          maxLength: 200
+    CurrentUser:
+      type: object
+      required: [id, username, nameColor, nameColor2]
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        nameColor:
+          type: string
+          nullable: true
+        nameColor2:
+          type: string
+          nullable: true
+    SetNameColorInput:
+      type: object
+      required: [color1]
+      properties:
+        color1:
+          type: string
+        color2:
+          type: string
+          nullable: true
+    CurrentUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - $ref: '#/components/schemas/CurrentUser'
+            - type: 'null'
+    LogoutResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          const: true
+    SubmitScoreInput:
+      type: object
+      required: [score]
+      properties:
+        score:
+          type: integer
+          minimum: 0
+        mode:
+          type: string
+          enum: [normal, pain]
+    ScoreEntry:
+      type: object
+      required: [id, userId, score, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        score:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+    LeaderboardEntry:
+      type: object
+      required: [userId, username, score, createdAt, nameColor, nameColor2, painBest]
+      properties:
+        userId:
+          type: integer
+        username:
+          type: string
+        score:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        nameColor:
+          type: string
+          nullable: true
+        nameColor2:
+          type: string
+          nullable: true
+        painBest:
+          type: integer
+          nullable: true
